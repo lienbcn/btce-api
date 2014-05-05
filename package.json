@@ -1,0 +1,16 @@
+{
+  "name": "btce-api",
+  "description": "Node.js client for the btc-e API",
+  "version": "2.0.0",
+  "homepage": "https://github.com/lienbcn/btce",
+  "keywords": [
+    "btc-e",
+	"btce",
+    "btc",
+    "ltc",
+    "bitcoin",
+    "litecoin"
+  ],
+  "author": "Nil Sanz",
+  "dependencies": {}
+}
