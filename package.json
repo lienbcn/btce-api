@@ -12,5 +12,6 @@
     "litecoin"
   ],
   "author": "Nil Sanz",
+  "main": "btce-api.js",
   "dependencies": {}
 }
