@@ -1,9 +1,25 @@
-//btce api v2.0
+/**
+ * File: btce-api.js
+ *
+ * Node.js client for the btc-e API
+ *
+ * v2.1: Request is resent if nonce parameter is invalid.
+ * Try and catch statement is only used if it should be used.
+ *
+ * Author: Nil Sanz
+ * Date: May 2014
+ */
 
 var https = require('https');
 var crypto = require('crypto');
 var qs = require('querystring');
+//var myconsole = require('./myconsole.js');
 
+var sHostName = 'btc-e.com';
+/**
+ * [description]
+ * @return {[type]} [description]
+ */
 var fnGetNonce = (function(){
 	var nPrevNonce = -1;
 	return function(){
@@ -11,6 +27,7 @@ var fnGetNonce = (function(){
 		//console.log('New nonce: '+nNewNonce);
 		if (nNewNonce <= nPrevNonce) {
 			nNewNonce ++;
+			console.log('Nounce has been incremented manually');
 		}
 		nPrevNonce = nNewNonce;
 		return nNewNonce;
@@ -27,19 +44,24 @@ var fnSetKeys = function(oNewPair){
 };
 
 //private api:
-var fnMakeRequest = function(params,cb){
-	try{
-		//console.log('params: '+JSON.stringify(params));
+var fnMakeRequest = function fnMakeRequest(params,cb){
+	//try{
+		//myconsole.log(3, 'New request. params: '+JSON.stringify(params), {bNoOutput: true});
 		if (!oPair){
 			console.log("Error. Trying to use an authorized method. Use first the 'setKeys' method.");
 			return;
 		}
+		if (typeof oPair.secret !== 'string' || typeof oPair.key !== 'string') {
+			console.log("Error. oPair is not correct: "+JSON.stringify(oPair));
+			return;
+		}
+		params.nonce = fnGetNonce();
 		var signed = crypto.createHmac('sha512', oPair.secret);
 		var encoded_params = qs.stringify(params);
 		signed.update(encoded_params);
 
 		var options = {
-			hostname: 'btc-e.com',
+			hostname: sHostName,
 			port: 443,
 			path: '/tapi',
 			method: 'POST',
@@ -50,20 +72,25 @@ var fnMakeRequest = function(params,cb){
 				'Content-Length': encoded_params.length
 			}
 		};
-
 		var req = https.request(options, function(res) {
 			var data = '';
 			res.on('data', function(d) {
 				data += d;
 			});
 			res.on('end', function(){
-				try{
-					var obj = JSON.parse(data);
-					cb(obj);
+				var obj;
+				try{ //data may not be valid json string
+					obj = JSON.parse(data);
 				}catch(err){
-					console.log(new Date().toString() + ': Error while parsing data from server. data:'+data);
-					console.log(err.name+'|'+err.message);
-					return false;
+					//myconsole.log(2, 'Error while parsing json data from server:' + data);
+					return;
+				}
+				if (typeof obj === 'object' && obj.success === 0 && typeof obj.error === 'string' && obj.error.slice(0,24) === 'invalid nonce parameter;') { //then retry the request
+					//myconsole.log('Retrying request '+JSON.stringify(params)+' due to invalid nonce parameter.');
+					fnMakeRequest(params, cb);
+				}
+				else{
+					cb(obj);
 				}
 			});
 		});
@@ -71,37 +98,33 @@ var fnMakeRequest = function(params,cb){
 		req.end();
 
 		req.on('error', function(e) {
-			console.log("Error");
+			//myconsole.log(2, "Error in the request:");
 			console.error(e);
+			console.error(e.stack);
 		});
-	}
+	/*}
 	catch(err){
 		console.log(err);
-	}
+	}*/
 };
 var fnGetInfo = function (cb) { //return the same as btce server
 	//console.log('getting info');
-	var nonce = fnGetNonce();
-	var params = {'method' : 'getInfo',
-				'nonce': nonce};
+	var params = {'method' : 'getInfo'};
 	return fnMakeRequest(params,cb);
 };
 var fnTrade = function (oConfig, cb) {
-	var nonce = fnGetNonce();
-	var params = {'method' : 'Trade',
-	'pair': oConfig.pair,
-	'type': oConfig.type,
-	'rate': oConfig.rate, //price
-	'amount': oConfig.amount,
-	'nonce': nonce
+	var params = {
+		'method' : 'Trade',
+		'pair': oConfig.pair,
+		'type': oConfig.type,
+		'rate': oConfig.rate, //price
+		'amount': oConfig.amount
 	};
 	return fnMakeRequest(params,cb);
 };
 var fnTradeHistory = function (oConfig, cb) {
 	//console.log('getting trade history');
-	var nonce = fnGetNonce();
-	var params = {'method' : 'TradeHistory',
-	'nonce': nonce
+	var params = {'method' : 'TradeHistory'
 	};
 	var sProp;
 	for (sProp in oConfig){
@@ -113,9 +136,7 @@ var fnTradeHistory = function (oConfig, cb) {
 };
 var fnOrderList = function (oConfig, cb) {
 	//console.log('getting orders list');
-	var nonce = fnGetNonce();
-	var params = {'method' : 'OrderList',
-	'nonce': nonce
+	var params = {'method' : 'OrderList'
 	};
 	var sProp;
 	for (sProp in oConfig){
@@ -127,14 +148,14 @@ var fnOrderList = function (oConfig, cb) {
 };
 var fnCancelOrder = function (oConfig, cb) {
 	//console.log('cancelling order');
-	var nonce = fnGetNonce();
-	var params = {'method' : 'CancelOrder', 'nonce': nonce, 'order_id': oConfig.order_id};
+	var params = {'method' : 'CancelOrder', 'order_id': oConfig.order_id};
 	return fnMakeRequest(params,cb);
 };
 
 //public api:
 var _fnPublicRequest = function(oOptions, fnCallback){
 	var _get = function(oOptions, fnCallback){
+		//myconsole.log(3, 'New public request: '+JSON.stringify(oOptions), {bNoOutput: true});
 		_getJSON(oOptions, function(nStatusCode, oInfo){ //call the https request maker function. the callback will receive the parsed json
 			if (nStatusCode === 200){ //OK
 				//save data here
@@ -146,7 +167,7 @@ var _fnPublicRequest = function(oOptions, fnCallback){
 		});
 	};
 	var _getJSON = function(oOptions, onResult){ //makes an https request to btce and defines the handlers of its response
-		try{
+		//try{
 			var req = https.request(oOptions, function(res){
 				var sjsonOutput = '';
 				res.setEncoding('utf8');
@@ -154,35 +175,36 @@ var _fnPublicRequest = function(oOptions, fnCallback){
 					sjsonOutput += chunk;
 				});
 				res.on('end', function() {
+					var oObject;
 					try{
-						var obj = JSON.parse(sjsonOutput);
-						onResult(res.statusCode, obj);
+						oObject = JSON.parse(sjsonOutput);
 					}catch(err){
-						console.log(new Date().toString() + ': Error while parsing data from server (2). data: '+sjsonOutput);
-						console.log(err.name+'|'+err.message);
-						return false;
+						//myconsole.log(2, 'Error while parsing json data from server: '+sjsonOutput);
+						return;
 					}
+					onResult(res.statusCode, oObject);
 				});
 			});
-			req.on('error', function(err) {
-				//res.send('error: ' + err.message);
-				console.log(new Date().toString() + ': Error event: '+JSON.stringify(err));
+			req.on('error', function(e) {
+				//myconsole.log(2, "Error in the request:");
+				console.error(e);
+				console.error(e.stack);
 			});
 			req.end();
-		}
+		/*}
 		catch(err){
 			console.log(err);
-		}
+		}*/
 	};
 	_get(oOptions, fnCallback);
 };
-var fnGetLastTrades = function(fnCallback){
+var fnGetLastTrades = function(sPair, fnCallback){
 	//console.log('getting last trades');
-	//get the trades from btc-e.com server: https://btc-e.com/api/2/btc_usd/trades
+	//get the trades from btc-e.com server eg: https://btc-e.com/api/2/btc_usd/trades
 	var oOptions = {
-		host: 'btc-e.com',
+		host: sHostName,
 		port: 443,
-		path: '/api/2/btc_usd/trades',
+		path: '/api/2/'+sPair+'/trades',
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json'
@@ -190,13 +212,13 @@ var fnGetLastTrades = function(fnCallback){
 	};
 	_fnPublicRequest(oOptions, fnCallback);
 };
-var fnGetDepth = function(fnCallback){
+var fnGetDepth = function(sPair, fnCallback){
 	//console.log('getting depth');
 	//get the depth from btc-e.com server: https://btc-e.com/api/2/btc_usd/depth
 	var oOptions = {
-		host: 'btc-e.com',
+		host: sHostName,
 		port: 443,
-		path: '/api/2/btc_usd/depth',
+		path: '/api/2/'+sPair+'/depth',
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json'
@@ -204,11 +226,11 @@ var fnGetDepth = function(fnCallback){
 	};
 	_fnPublicRequest(oOptions, fnCallback);
 };
-var fnGetTicker = function(fnCallback){
+var fnGetTicker = function(sPair, fnCallback){
 	var oOptions = {
-		host: 'btc-e.com',
+		host: sHostName,
 		port: 443,
-		path: '/api/2/btc_usd/ticker',
+		path: '/api/2/'+sPair+'/ticker',
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/json'
@@ -217,7 +239,7 @@ var fnGetTicker = function(fnCallback){
 	_fnPublicRequest(oOptions, fnCallback);
 };
 
-//create a list FIFO of functions (requests). The (requests) will be executed every 400 ms to avoid invalid nounce numbers:
+//create a list FIFO of functions (requests). The (requests) will be executed every 200 ms to avoid invalid nounce numbers:
 var afnRequests = [];
 var fnExecuteRequests = (function(){
 	var bProcessingRequests = false;
@@ -228,7 +250,7 @@ var fnExecuteRequests = (function(){
 				afnRequests.splice(0,1); //remove from list
 				setTimeout(function(){
 					fnCallBack(true);
-				}, 400);
+				}, 200);
 			}
 			else{
 				fnCallBack(false);
