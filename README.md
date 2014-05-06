@@ -23,9 +23,9 @@ btceApi.cancelOrder(oConfig, callback)
 ```
 Public API methods
 ```
-btceApi.getLastTrades(callback)
-btceApi.getDepth(callback)
-btceApi.getTicker(callback)
+btceApi.getLastTrades(sPair, callback)
+btceApi.getDepth(sPair, callback)
+btceApi.getTicker(sPair, callback)
 ```
 
 ## Examples
@@ -34,7 +34,7 @@ You can call the public API metohds of btce without using your key pair:
 
 ```
 var btceApi = require('btce-api');
-btceApi.getLastTrades(function(aLastTrades){
+btceApi.getLastTrades('ltc_usd', function(aLastTrades){
 	console.dir(aLastTrades.slice(0, 5));
 });
 ```
@@ -51,13 +51,12 @@ btceApi.setKeys(oPair);
 btceApi.getInfo(function(oInfo){
 	console.dir(oInfo);
 });
-btceApi.getTicker(function(oTicker){
+btceApi.getTicker('ltc_usd', function(oTicker){
 	console.dir(oTicker);
 });
 ```
 
 ## Notes
 
-The requests have to have a parameter called nonce that is a number that cannot decrease over time. The module generates it using the current timestamp. The requests are delayed each other few tenths of a second in order to avoid that some requests arrive before the previous one.
+The requests have to have a parameter called nonce that is a number that cannot decrease over time. The module generates it using the current timestamp. The requests are delayed each other few tenths of a second in order to avoid that some requests arrive before the previous one. If a request returns an error it retries to send it.
 If you try to send a lot of requests at once, they will be stored in a queue and it may take a while to complete all the requests.
-This version is only valid for the usd/btc pair.

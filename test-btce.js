@@ -1,17 +1,12 @@
-var btceApi = require('btce-api.js');
-
+var btceApi = require('btce-api');
 var oPair = {
 	key: '',
 	secret: ''
 };
-
-btceApi.getLastTrades(function(aLastTrades){
-	console.dir(aLastTrades.slice(0, 5));
-});
 btceApi.setKeys(oPair);
 btceApi.getInfo(function(oInfo){
 	console.dir(oInfo);
 });
-btceApi.getTicker(function(oTicker){
+btceApi.getTicker('ltc_usd', function(oTicker){
 	console.dir(oTicker);
 });

@@ -1,7 +1,7 @@
 {
   "name": "btce-api",
   "description": "Node.js client for the btc-e API",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "homepage": "https://github.com/lienbcn/btce",
   "keywords": [
     "btc-e",
