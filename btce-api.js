@@ -44,7 +44,7 @@ var fnSetKeys = function(oNewPair){
 };
 
 //private api:
-var fnMakeRequest = function fnMakeRequest(params,cb){
+var fnMakeRequest = function fnMakeRequest(params, fnCallback){
 	//try{
 		//myconsole.log(3, 'New request. params: '+JSON.stringify(params), {bNoOutput: true});
 		if (!oPair){
@@ -87,10 +87,10 @@ var fnMakeRequest = function fnMakeRequest(params,cb){
 				}
 				if (typeof obj === 'object' && obj.success === 0 && typeof obj.error === 'string' && obj.error.slice(0,24) === 'invalid nonce parameter;') { //then retry the request
 					//myconsole.log('Retrying request '+JSON.stringify(params)+' due to invalid nonce parameter.');
-					fnMakeRequest(params, cb);
+					fnMakeRequest(params, fnCallback);
 				}
 				else{
-					cb(obj);
+					fnCallback(null, obj);
 				}
 			});
 		});
@@ -99,8 +99,9 @@ var fnMakeRequest = function fnMakeRequest(params,cb){
 
 		req.on('error', function(e) {
 			//myconsole.log(2, "Error in the request:");
-			console.error(e);
-			console.error(e.stack);
+			//console.error(e);
+			//console.error(e.stack);
+			fnCallback(e);
 		});
 	/*}
 	catch(err){
@@ -156,13 +157,17 @@ var fnCancelOrder = function (oConfig, cb) {
 var _fnPublicRequest = function(oOptions, fnCallback){
 	var _get = function(oOptions, fnCallback){
 		//myconsole.log(3, 'New public request: '+JSON.stringify(oOptions), {bNoOutput: true});
-		_getJSON(oOptions, function(nStatusCode, oInfo){ //call the https request maker function. the callback will receive the parsed json
+		_getJSON(oOptions, function(err, nStatusCode, oInfo){ //call the https request maker function. the callback will receive the parsed json
+			if (err){
+				return fnCallback(err);
+			}
 			if (nStatusCode === 200){ //OK
 				//save data here
-				fnCallback(oInfo);
+				fnCallback(null, oInfo);
 			}
 			else{ //500, 404 etc
-				console.log(new Date().toString() + ': Error code when requesting '+oOptions.path+' :'+nStatusCode);
+				//console.log(new Date().toString() + ': Error code when requesting '+oOptions.path+' :'+nStatusCode);
+				fnCallback('Error HTTP code when requesting '+oOptions.path+' :'+nStatusCode);
 			}
 		});
 	};
@@ -182,13 +187,14 @@ var _fnPublicRequest = function(oOptions, fnCallback){
 						//myconsole.log(2, 'Error while parsing json data from server: '+sjsonOutput);
 						return;
 					}
-					onResult(res.statusCode, oObject);
+					onResult(null, res.statusCode, oObject);
 				});
 			});
 			req.on('error', function(e) {
 				//myconsole.log(2, "Error in the request:");
-				console.error(e);
-				console.error(e.stack);
+				//console.error(e);
+				//console.error(e.stack);
+				onResult(e);
 			});
 			req.end();
 		/*}
@@ -249,21 +255,19 @@ var fnExecuteRequests = (function(){
 				afnRequests[0]();
 				afnRequests.splice(0,1); //remove from list
 				setTimeout(function(){
-					fnCallBack(true);
+					fnCallBack(null);
 				}, 200);
 			}
 			else{
-				fnCallBack(false);
+				fnCallBack('No requests in the list');
 			}
 		};
 		var fnExecuteAllRequests = function fnExecuteAllRequests(fnCallback){
-			fnExecuteFirstRequest(function(bExecuted){
-				if (bExecuted) {
-					fnExecuteAllRequests(fnCallback);
+			fnExecuteFirstRequest(function(sErr){
+				if (sErr) { //if all requests have been executed
+					return fnCallback(null);
 				}
-				else{
-					fnCallback();
-				}
+				fnExecuteAllRequests(fnCallback); //continue executing requests
 			});
 		};
 		if (!bProcessingRequests) {
@@ -294,15 +298,3 @@ var oApi = {
 };
 
 module.exports = oApi; //object with methods
-
-
-/* //Example:
-var oBtce = require('./btce.js');
-oBtce.getLastTrades(function(aLastTrades){
-	console.dir(aLastTrades);
-});
-oBtce.setKeys({key: sKey, secret: sSecret});
-oBtce.getInfo(function(oInfo){
-	console.dir(oInfo);
-});
-*/
